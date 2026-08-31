@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    width: 300px;
+    height: 380px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    overflow: hidden;
+    background: #000;
+  }
+
+  /* Fondo animado */
+  .bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #0a0a0a 0%, #111 50%, #0a0a0a 100%);
+    overflow: hidden;
+  }
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.5;
+    animation: drift 8s ease-in-out infinite;
+  }
+  .orb1 { width:180px; height:180px; background:#1677ff; top:-60px; left:-40px; animation-delay:0s; }
+  .orb2 { width:140px; height:140px; background:#7c3aed; bottom:-40px; right:-30px; animation-delay:-3s; }
+  .orb3 { width:100px; height:100px; background:#0ea5e9; top:50%; left:60%; animation-delay:-5s; }
+  @keyframes drift {
+    0%,100% { transform: translate(0,0) scale(1); }
+    33%      { transform: translate(15px,-10px) scale(1.05); }
+    66%      { transform: translate(-10px,12px) scale(0.95); }
+  }
+
+  /* Panel Liquid Glass */
+  .glass {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 32px 28px;
+    background: rgba(255,255,255,0.04);
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  /* Logo */
+  .logo-wrap {
+    width: 64px; height: 64px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 18px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+  }
+  .logo-text {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.5px;
+  }
+
+  /* Título */
+  .title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+  .title span {
+    background: linear-gradient(90deg, #60a5fa, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    font-size: 12px;
+    color: rgba(255,255,255,0.4);
+    text-align: center;
+    margin-bottom: 28px;
+    letter-spacing: 0.3px;
+  }
+
+  /* Chips de info */
+  .chips {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .chip {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.6);
+    display: flex; align-items: center; gap: 5px;
+    backdrop-filter: blur(10px);
+  }
+  .chip .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #52c41a;
+    box-shadow: 0 0 6px #52c41a;
+  }
+  .chip .dot.blue { background: #60a5fa; box-shadow: 0 0 6px #60a5fa; }
+
+  /* Divider */
+  .divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+    margin-bottom: 20px;
+  }
+
+  /* Firma */
+  .by {
+    font-size: 12px;
+    color: rgba(255,255,255,0.25);
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+  .by strong {
+    color: rgba(255,255,255,0.7);
+    font-weight: 600;
+    background: linear-gradient(90deg, #60a5fa, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Version badge */
+  .ver {
+    position: absolute;
+    top: 14px; right: 14px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.2);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+
+  /* Línea decorativa brillante */
+  .glow-line {
+    position: absolute;
+    top: 0; left: 20%; right: 20%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(100,160,255,0.6), transparent);
+  }
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+</div>
+
+<div class="glass">
+  <div class="glow-line"></div>
+  <div class="ver">v1.0</div>
+
+  <div class="logo-wrap">
+    <span class="logo-text">Pro</span>
+  </div>
+
+  <div class="title">SpeedX <span>Copier</span></div>
+  <div class="subtitle">Route Report Tool · Dashboard</div>
+
+  <div class="chips">
+    <div class="chip"><div class="dot"></div> Copiado directo</div>
+    <div class="chip"><div class="dot blue"></div> Auto-scroll</div>
+    <div class="chip"><div class="dot blue"></div> Filtro activo</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="by">Desarrollado por <strong>Carlos</strong></div>
+</div>
+
+</body>
+</html>
