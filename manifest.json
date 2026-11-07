@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SpeedX Route Copier",
   "version": "1.0.0",
-  "description": "Herramienta para el dashboard de SpeedX POS. Copia reportes completos de rutas con un click, detecta el filtro activo (On Track, Completed, Amber, etc.) y abre direcciones de paquetes directamente en Google Maps.",
+  "description": "Herramienta para SpeedX dashboard y revisión de paquetes QC. Copia reportes de rutas y abre direcciones en Google Maps.",
   "permissions": ["clipboardWrite"],
   "icons": {
     "16":  "icon16.png",
@@ -20,7 +20,10 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://pos.speedx.io/bi/dashboard*"],
+      "matches": [
+        "https://pos.speedx.io/bi/dashboard*",
+        "https://pos.opsfleet.us/pages/qc-package-review.php*"
+      ],
       "js":  ["content.js"],
       "css": ["styles.css"],
       "run_at": "document_idle"

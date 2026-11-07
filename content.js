@@ -182,8 +182,14 @@ new MutationObserver(() => {
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// MÓDULO GOOGLE MAPS
+// MÓDULO GOOGLE MAPS — solo en el dashboard de SpeedX
 // ══════════════════════════════════════════════════════════════════════════════
+
+// Este módulo SOLO corre en pos.speedx.io (dashboard de rutas)
+// En pos.opsfleet.us la dirección la maneja el módulo QC con su propio <a>
+if (location.hostname === 'pos.opsfleet.us') {
+  // skip — el módulo QC tiene su propio link de Maps
+} else {
 
 const DIR_RE     = /\d+\s+[A-Za-z0-9 ,.'#-]{5,80}[A-Z]{2}\s+\d{5}/;
 const EXCLUIR_RE = /\*{3,}|SPXPVD|batch|GAS_CAR|ELECTRIC/i;
@@ -194,21 +200,29 @@ function inyectarCSS() {
   const s = document.createElement('style');
   s.id = 'spx-maps-css';
   s.textContent = `
-    .spx-addr {
-      cursor: pointer;
-      display: inline;
-      background-image: linear-gradient(90deg, #1677ff, #1677ff);
-      background-size: 0% 1.5px;
-      background-repeat: no-repeat;
-      background-position: left bottom;
-      padding-bottom: 1px;
-      transition: background-size 0.2s ease, color 0.15s ease;
+    [data-spx-maps="activo"] {
+      position: relative !important;
     }
-    .spx-addr:hover {
-      background-size: 100% 1.5px;
+    .spx-link {
+      position: absolute;
+      inset: 0;
+      z-index: 9998;
+      cursor: pointer !important;
+      text-decoration: none;
+      display: none;
+    }
+    .spx-link.visible {
+      display: block;
+    }
+    /* Cuando el link está en hover, colorear el texto de la celda padre */
+    .spx-link.visible:hover + .spx-text {
       color: #1677ff !important;
+      text-decoration: underline !important;
+      text-decoration-color: #1677ff !important;
     }
-    .spx-addr:active { opacity: 0.75; }
+    .spx-text {
+      transition: color 0.15s, text-decoration 0.15s;
+    }
   `;
   document.head.appendChild(s);
 }
@@ -222,75 +236,103 @@ function extraerDir(texto) {
   return m[0].trim();
 }
 
-// Flag global para evitar que el mismo click abra Maps múltiples veces
-// cuando hay varios listeners anidados en contenedores padre/hijo
 let _mapsAbierto = false;
+
+// Guarda qué celda tiene el mouse encima ahora mismo
+let _celdaBajoMouse = null;
+document.addEventListener('mouseover', e => {
+  const celda = e.target.closest(`[${MAPS_ATTR}]`);
+  _celdaBajoMouse = celda || null;
+}, { passive: true });
 
 function procesarCelda(celda) {
   if (celda.getAttribute(MAPS_ATTR)) return;
+  celda.setAttribute(MAPS_ATTR, 'inactivo');
 
-  const dir = extraerDir(celda.innerText || celda.textContent || '');
-  if (!dir) return;
+  if (getComputedStyle(celda).position === 'static') {
+    celda.style.setProperty('position', 'relative', 'important');
+  }
 
-  celda.setAttribute(MAPS_ATTR, dir);
-  celda.style.cursor = 'pointer';
+  // Link invisible encima — cursor pointer nativo, no hay CSS que lo gane
+  const link = document.createElement('a');
+  link.className = 'spx-link';
+  link.href      = '#';
 
-  celda.addEventListener('mouseenter', () => {
-    if (!extraerDir(celda.innerText || '')) return;
-    celda.style.color                 = '#1677ff';
-    celda.style.textDecoration        = 'underline';
-    celda.style.textDecorationColor   = '#1677ff';
-    celda.style.textDecorationThickness = '1.5px';
-    celda.style.textUnderlineOffset   = '2px';
-    celda.style.transition            = 'color 0.15s';
-  });
-
-  celda.addEventListener('mouseleave', () => {
-    celda.style.color          = '';
-    celda.style.textDecoration = '';
-  });
-
-  celda.addEventListener('click', e => {
-    // No interferir con botones, SVGs ni links dentro de la celda
-    if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
-    if (e.target.tagName === 'SVG'    || e.target.closest('svg'))    return;
-    if (e.target.tagName === 'A'      || e.target.closest('a'))      return;
-
-    // Verificar que la dirección sigue visible
-    const dirActual = extraerDir(celda.innerText || celda.textContent || '');
-    if (!dirActual) return;
-
-    // Evitar múltiples aperturas por el mismo click en elementos anidados
-    if (_mapsAbierto) return;
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    const dir = extraerDir(celda.innerText || celda.textContent || '');
+    if (!dir || _mapsAbierto) return;
     _mapsAbierto = true;
     setTimeout(() => { _mapsAbierto = false; }, 300);
+    window.open(`https://www.google.com/maps/search/?q=${encodeURIComponent(dir)}`, '_blank');
+  });
 
-    window.open(
-      `https://www.google.com/maps/search/?q=${encodeURIComponent(dirActual)}`,
-      '_blank'
-    );
+  // Span que envuelve el texto — para aplicar el color hover
+  // No tocamos el contenido — solo añadimos una clase al elemento
+  link.addEventListener('mouseenter', () => celda.classList.add('spx-hover'));
+  link.addEventListener('mouseleave', () => celda.classList.remove('spx-hover'));
+
+  celda.appendChild(link);
+  celda._spxLink = link;
+
+  // Estilo hover via JS directo — más confiable que CSS externo
+  const styleEl = document.createElement('style');
+  styleEl.textContent = `
+    [data-spx-id="${celda.dataset.spxId}"].spx-hover {
+      color: #1677ff !important;
+      text-decoration: underline !important;
+      text-decoration-color: #1677ff !important;
+      text-decoration-thickness: 1.5px !important;
+      text-underline-offset: 2px !important;
+    }
+  `;
+  celda.dataset.spxId = Math.random().toString(36).slice(2);
+  document.head.appendChild(styleEl);
+  celda._spxStyle = styleEl;
+  // Actualizar el selector con el ID real
+  styleEl.textContent = `
+    [data-spx-id="${celda.dataset.spxId}"].spx-hover {
+      color: #1677ff !important;
+      text-decoration: underline !important;
+      text-decoration-color: #1677ff !important;
+      text-decoration-thickness: 1.5px !important;
+      text-underline-offset: 2px !important;
+    }
+  `;
+}
+
+function actualizarEstados() {
+  document.querySelectorAll(`[${MAPS_ATTR}]`).forEach(celda => {
+    const tieneDir = !!extraerDir(celda.innerText || celda.textContent || '');
+    celda.setAttribute(MAPS_ATTR, tieneDir ? 'activo' : 'inactivo');
+
+    if (celda._spxLink) {
+      if (tieneDir) {
+        celda._spxLink.classList.add('visible');
+        // Si el mouse ya está sobre esta celda, activar hover inmediatamente
+        if (_celdaBajoMouse === celda || celda.contains(_celdaBajoMouse)) {
+          celda.classList.add('spx-hover');
+        }
+      } else {
+        celda._spxLink.classList.remove('visible');
+        celda.classList.remove('spx-hover');
+      }
+    }
   });
 }
 
 function escanear() {
+  actualizarEstados();
+
   const selectores = 'td, [class*="cell"], [class*="Cell"], [class*="address"], [class*="Address"]';
   for (const el of document.querySelectorAll(selectores)) {
-    if (el.getAttribute(MAPS_ATTR)) {
-      const txt = el.innerText || el.textContent || '';
-      if (EXCLUIR_RE.test(txt) || !extraerDir(txt)) {
-        el.style.color = '';
-        el.style.textDecoration = '';
-        el.style.cursor = '';
-      }
-      continue;
-    }
+    if (el.getAttribute(MAPS_ATTR)) continue;
     if (el.children.length > 5) continue;
     const txt = el.innerText || el.textContent || '';
     if (txt.length < 10 || txt.length > 300) continue;
     if (extraerDir(txt)) procesarCelda(el);
   }
 
-  // Búsqueda adicional por walker
   const walker = document.createTreeWalker(
     document.body, NodeFilter.SHOW_ELEMENT,
     {
@@ -324,6 +366,7 @@ new MutationObserver(mutations => {
     return true;
   });
   if (!relevante) return;
+  actualizarEstados();
   clearTimeout(scanTimer);
   scanTimer = setTimeout(escanear, 400);
 }).observe(document.body, {
@@ -337,9 +380,7 @@ setInterval(() => {
     ultimaUrl = location.href;
     document.querySelectorAll(`[${MAPS_ATTR}]`).forEach(el => {
       el.removeAttribute(MAPS_ATTR);
-      el.style.color = '';
-      el.style.textDecoration = '';
-      el.style.cursor = '';
+      el.classList.remove('spx-hover');
     });
     setTimeout(escanear, 1000);
   }
@@ -348,3 +389,344 @@ setInterval(() => {
 inyectarCSS();
 setTimeout(escanear, 1500);
 setTimeout(escanear, 4000);
+} // fin if hostname !== opsfleet (módulo Google Maps dashboard)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MÓDULO QC REVIEW
+// SOLO actúa en: pos.opsfleet.us/pages/qc-package-review.php
+// ══════════════════════════════════════════════════════════════════════════════
+
+(function() {
+  // Verificar que estamos EXACTAMENTE en la página correcta
+  const esPaginaPaquete = () =>
+    location.hostname === 'pos.opsfleet.us' &&
+    location.pathname === '/pages/qc-package-review.php';
+
+  if (!esPaginaPaquete()) return;
+
+  // CSS
+  const style = document.createElement('style');
+  style.textContent = `
+    a.spx-qc-link {
+      color: inherit;
+      text-decoration: none;
+      cursor: pointer !important;
+      border-bottom: 1.5px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      padding-bottom: 1px;
+    }
+    a.spx-qc-link:hover {
+      color: #1677ff !important;
+      border-bottom-color: #1677ff !important;
+    }
+  `;
+  document.head.appendChild(style);
+
+  // Regex: número + calle + estado abreviado + zip (ej: "6 Crandon Dr Apt A, ACUSHNET, MA 02743")
+  const DIR_RE = /\d+\s+[A-Za-z0-9 ,.'#-]{5,80},\s*[A-Z]{2}\s+\d{5}/;
+
+  function procesarDireccion() {
+    if (document.querySelector('a.spx-qc-link')) return;
+
+    // Buscar el span exacto que tiene el label "Address" dentro de qc-detail
+    // La estructura es: span.text-muted "Address" + span con el valor
+    let addressSpan = null;
+
+    // Intento 1: buscar por el span label "Address" y tomar el siguiente span hermano
+    for (const span of document.querySelectorAll('span.text-muted, span')) {
+      if ((span.textContent || '').trim() === 'Address') {
+        // El valor puede ser el siguiente hermano elemento
+        let next = span.nextElementSibling;
+        if (!next) {
+          // O el padre tiene más hijos
+          const parent = span.parentElement;
+          if (parent) {
+            const kids = [...parent.children];
+            const idx = kids.indexOf(span);
+            next = kids[idx + 1] || null;
+          }
+        }
+        if (next) { addressSpan = next; break; }
+      }
+    }
+
+    // Intento 2: buscar el span que tenga data-spx-maps (ya procesado por el módulo de Maps)
+    if (!addressSpan) {
+      addressSpan = document.querySelector('[data-spx-maps="activo"] span:not(.text-muted)');
+    }
+
+    // Intento 3: buscar cualquier nodo de texto que matchee el regex dentro de Package Data
+    if (!addressSpan) {
+      let packageData = null;
+      for (const el of document.querySelectorAll('.card, .card-body, [class*="detail"]')) {
+        if ((el.innerText || '').includes('Package Data')) { packageData = el; break; }
+      }
+      if (!packageData) return;
+
+      const walker = document.createTreeWalker(packageData, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          const txt = (node.textContent || '').trim();
+          if (txt.length < 8) return NodeFilter.FILTER_SKIP;
+          const p = node.parentElement;
+          if (!p || p.closest('a.spx-qc-link')) return NodeFilter.FILTER_SKIP;
+          if (['SCRIPT','STYLE','INPUT','TEXTAREA'].includes(p.tagName)) return NodeFilter.FILTER_SKIP;
+          // Excluir nodos que sean solo labels (texto corto sin números)
+          if (!/\d/.test(txt)) return NodeFilter.FILTER_SKIP;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+
+      let node;
+      while ((node = walker.nextNode())) {
+        if (DIR_RE.test(node.textContent || '')) {
+          addressSpan = node.parentElement;
+          break;
+        }
+      }
+    }
+
+    if (!addressSpan) return;
+
+    // Obtener el texto completo del span (puede tener nodos hijos con partes de la dirección)
+    const fullText = (addressSpan.innerText || addressSpan.textContent || '').trim();
+    const m = fullText.match(DIR_RE);
+    if (!m) return;
+
+    const direccion = m[0].trim();
+
+    // Limpiar el span y reemplazar su contenido con el link
+    addressSpan.innerHTML = '';
+    const link = document.createElement('a');
+    link.className   = 'spx-qc-link';
+    link.href        = '#';
+    link.textContent = direccion;
+    link.title       = 'Abrir en Google Maps';
+    link.style.display = 'inline';
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open(
+        `https://www.google.com/maps/search/?q=${encodeURIComponent(direccion)}`,
+        '_blank'
+      );
+    });
+    addressSpan.appendChild(link);
+  }
+
+  // Ejecutar cuando la página cargue
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(procesarDireccion, 800));
+  } else {
+    setTimeout(procesarDireccion, 800);
+  }
+
+  // Re-ejecutar si cambia el contenido (navegación entre paquetes)
+  let timer = null;
+  new MutationObserver(() => {
+    clearTimeout(timer);
+    timer = setTimeout(procesarDireccion, 600);
+  }).observe(document.body, {
+    childList: true, subtree: true,
+    attributes: false, characterData: false
+  });
+})();
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MÓDULO ZOOM — lupitas dentro del visor POD de OpsFleet
+// Selectores exactos: img#qcModalPhoto, div.qc-photo-stage, div#photoModal
+// ══════════════════════════════════════════════════════════════════════════════
+
+(function () {
+  if (location.hostname !== 'pos.opsfleet.us') return;
+  if (!location.pathname.includes('qc-package-review')) return;
+
+  // ── CSS de la barra ────────────────────────────────────────────────────────
+  const st = document.createElement('style');
+  st.textContent = `
+    #spx-zoom-bar {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border-radius: 999px;
+      padding: 5px 14px;
+      z-index: 99999;
+      pointer-events: all;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .spx-zbtn {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.25);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    .spx-zbtn:hover { background: rgba(255,255,255,0.22); }
+    .spx-zbtn svg { display: block; }
+    #spx-zoom-pct {
+      color: rgba(255,255,255,0.9);
+      font: 500 12px/1 -apple-system, sans-serif;
+      min-width: 38px;
+      text-align: center;
+    }
+  `;
+  document.head.appendChild(st);
+
+  // ── SVGs de lupita ─────────────────────────────────────────────────────────
+  const SVG_MINUS = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    <line x1="8" y1="11" x2="14" y2="11"/>
+  </svg>`;
+  const SVG_PLUS = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+  </svg>`;
+
+  // ── Estado ─────────────────────────────────────────────────────────────────
+  let zoom = 1, panX = 0, panY = 0;
+  let dragging = false, dragStart = {};
+  let img = null;
+  let stage = null;
+  let barInyectada = false;
+
+  function applyTransform() {
+    if (!img) return;
+    img.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    img.style.transformOrigin = 'center center';
+    img.style.transition = dragging ? 'none' : 'transform 0.12s ease';
+    const pct = document.getElementById('spx-zoom-pct');
+    if (pct) pct.textContent = Math.round(zoom * 100) + '%';
+  }
+
+  function resetZoom() { zoom = 1; panX = 0; panY = 0; applyTransform(); }
+  function doZoomIn()  { zoom = Math.min(zoom + 0.25, 5); applyTransform(); }
+  function doZoomOut() { zoom = Math.max(zoom - 0.25, 0.5); applyTransform(); }
+
+  // ── Inyectar barra en el visor ─────────────────────────────────────────────
+  function inyectar() {
+    // Selectores exactos del DOM de OpsFleet
+    img   = document.getElementById('qcModalPhoto');
+    stage = document.querySelector('.qc-photo-stage');
+
+    if (!img || !stage) return false;
+
+    // Evitar duplicar
+    if (document.getElementById('spx-zoom-bar')) return true;
+
+    // La stage necesita overflow visible y position relative para que la barra quede bien
+    stage.style.setProperty('overflow', 'visible', 'important');
+    stage.style.setProperty('position', 'relative', 'important');
+
+    // Preparar imagen
+    img.style.cursor = 'grab';
+    img.draggable = false;
+    img.style.setProperty('max-width', '100%', 'important');
+    img.style.setProperty('max-height', '100%', 'important');
+    img.style.setProperty('object-fit', 'contain', 'important');
+    resetZoom();
+
+    // Crear barra
+    const bar = document.createElement('div');
+    bar.id = 'spx-zoom-bar';
+    bar.innerHTML = `
+      <button class="spx-zbtn" id="spx-zout" title="Alejar">${SVG_MINUS}</button>
+      <span id="spx-zoom-pct">100%</span>
+      <button class="spx-zbtn" id="spx-zin" title="Acercar">${SVG_PLUS}</button>
+    `;
+    stage.appendChild(bar);
+    bar.addEventListener('click', e => e.stopPropagation());
+
+    // Botones
+    document.getElementById('spx-zout').addEventListener('click', e => { e.stopPropagation(); doZoomOut(); });
+    document.getElementById('spx-zin').addEventListener('click',  e => { e.stopPropagation(); doZoomIn(); });
+
+    // Scroll del mouse = zoom
+    stage.addEventListener('wheel', e => {
+      e.preventDefault();
+      e.deltaY < 0 ? doZoomIn() : doZoomOut();
+    }, { passive: false });
+
+    // Drag para pan cuando hay zoom
+    img.addEventListener('mousedown', e => {
+      if (zoom <= 1) return;
+      dragging = true;
+      dragStart = { x: e.clientX, y: e.clientY, panX, panY };
+      img.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      panX = dragStart.panX + (e.clientX - dragStart.x);
+      panY = dragStart.panY + (e.clientY - dragStart.y);
+      applyTransform();
+    });
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      if (img) img.style.cursor = zoom > 1 ? 'grab' : 'default';
+    });
+
+    // Resetear zoom al navegar con flechas del teclado o botones ← →
+    const onNav = () => setTimeout(resetZoom, 80);
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') onNav();
+    });
+
+    const prevBtn = document.getElementById('qcPrevPhoto');
+    const nextBtn = document.getElementById('qcNextPhoto');
+    if (prevBtn) prevBtn.addEventListener('click', onNav);
+    if (nextBtn) nextBtn.addEventListener('click', onNav);
+
+    barInyectada = true;
+    return true;
+  }
+
+  // ── Limpiar cuando se cierra el modal ─────────────────────────────────────
+  function limpiar() {
+    const bar = document.getElementById('spx-zoom-bar');
+    if (bar) bar.remove();
+    if (stage) {
+      stage.style.removeProperty('overflow');
+    }
+    barInyectada = false;
+    img = null; stage = null;
+    zoom = 1; panX = 0; panY = 0;
+  }
+
+  // ── Observer: detectar cuando el modal abre/cierra ─────────────────────────
+  new MutationObserver(() => {
+    const modal = document.getElementById('photoModal');
+
+    if (!modal) return;
+
+    // El modal de Bootstrap alterna display:block / display:none
+    const visible = getComputedStyle(modal).display !== 'none';
+
+    if (visible && !barInyectada) {
+      // Pequeño delay para que la imagen esté en el DOM
+      setTimeout(() => { if (!inyectar()) setTimeout(inyectar, 300); }, 80);
+    }
+
+    if (!visible && barInyectada) {
+      limpiar();
+    }
+  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+
+  // Intento inicial (si el modal ya estaba abierto)
+  setTimeout(inyectar, 800);
+
+})();
